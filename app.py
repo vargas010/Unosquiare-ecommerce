@@ -2,6 +2,8 @@ import os
 from flask import Flask, jsonify
 import pocketbase
 from flask_cors import CORS
+from flask import Flask, request, jsonify
+
 # Inicializar la aplicación Flask
 app = Flask(__name__)
 CORS(app)
@@ -55,7 +57,62 @@ def get_wineries():
     
     return jsonify(wineries_data)
 
-    
+# Ruta para añadir productos
+@app.route('/api/products', methods=['POST'])
+def add_product():
+    data = request.json  # Obtener datos JSON enviados desde el frontend
+
+    # Verificar que todos los campos necesarios están presentes
+    if not data.get('name') or not data.get('provider_id') or not data.get('price') or not data.get('stock'):
+        return jsonify({"error": "Faltan campos requeridos"}), 400
+
+    # Obtener el proveedor de la base de datos usando el ID proporcionado
+    provider_id = data.get('provider_id')
+    try:
+        provider = pb.collection('Provider').get_one(provider_id)
+    except Exception as e:
+        return jsonify({"error": f"Proveedor no encontrado: {str(e)}"}), 404
+
+    # Crear un nuevo producto
+    new_product = {
+        "name": data.get('name'),
+        "description": data.get('description'),
+        "price": data.get('price'),
+        "stock": data.get('stock'),
+        "provider": provider_id,  # Relacionar con el proveedor
+        "created": "2025-06-12T00:00:00Z",  # Solo para ejemplo
+        "updated": "2025-06-12T00:00:00Z",  # Solo para ejemplo
+    }
+
+    # Añadir el producto a la base de datos de PocketBase
+    try:
+        pb.collection('Product').create(new_product)
+        return jsonify({"message": "Producto añadido correctamente", "product": new_product}), 201
+    except Exception as e:
+        return jsonify({"error": f"Error al guardar el producto: {str(e)}"}), 500
+
+# Ruta para obtener proveedores
+@app.route('/api/providers', methods=['GET'])
+def get_providers():
+    # Obtener todos los proveedores desde la colección 'Provider'
+    providers = pb.collection('Provider').get_full_list()
+
+    # Devolver la lista de proveedores
+    providers_data = []
+    for provider in providers:
+        provider_data = {
+            "id": provider.id,  # Asegúrate de que incluimos el ID
+            "name": provider.name,  # Asegúrate de que el campo 'name' esté disponible
+            "email": provider.email,
+            "description": provider.description,
+            "phone": provider.phone,
+            "address": provider.address,
+            "created": provider.created,
+            "updated": provider.updated
+        }
+        providers_data.append(provider_data)
+
+    return jsonify(providers_data)
 
 # Ejecutar la aplicación
 if __name__ == '__main__':
